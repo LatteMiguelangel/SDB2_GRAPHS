@@ -11,7 +11,6 @@ from services.routing import (
 from database.seed import seed_if_empty
 seed_if_empty()
 
-
 def asegurar_proyeccion(origen_id, destino_id, peso_camion):
     """
     Reproyecta SOLO si:
@@ -30,6 +29,11 @@ def asegurar_proyeccion(origen_id, destino_id, peso_camion):
         st.session_state.peso_proyectado = peso_camion
 
 
+# Función para detectar si ambos algoritmos generaron la misma ruta 
+def rutas_identicas(r1, r2):
+    coords1 = [(p['lat'], p['lon']) for p in r1['coordenadas']]
+    coords2 = [(p['lat'], p['lon']) for p in r2['coordenadas']]
+    return coords1 == coords2
 
 # Configuración de la página
 st.set_page_config(page_title="Logistics Optimizer", layout="wide")
@@ -82,7 +86,6 @@ peso_camion = st.sidebar.slider(
     step=0.5
 )
 
-
 # --- BOTONES ---
 
 if st.sidebar.button("Calcular Ruta con Dijkstra"):
@@ -129,14 +132,14 @@ if st.session_state.ruta_calculada and st.session_state.algoritmo != "comparar":
         if st.session_state.algoritmo == "dijkstra":
 
             col1.metric("Distancia Total", f"{ruta['distancia_total']:.2f} km")
-            col2.metric("Peso Distancia", f"{ruta['costo_total']:.2f}")
+            col2.metric("Peso Distancia", f"{ruta['costo_total']:.2f} km")
             col3.metric("Nodos Recorridos", len(ruta['coordenadas']))
             color_ruta = "blue"
 
         else:
 
-            col1.metric("Tiempo Total con Tráfico", f"{ruta['tiempo_total']:.2f}")
-            col2.metric("Peso Tiempo/Tráfico", f"{ruta['tiempo_total']:.2f}")
+            col1.metric("Tiempo Total con Tráfico", f"{ruta['tiempo_total']:.2f} mins")
+            col2.metric("Peso Tiempo/Tráfico", f"{ruta['tiempo_total']:.2f} mins")
             col3.metric("Nodos Recorridos", len(ruta['coordenadas']))
             color_ruta = "red"
 
@@ -197,8 +200,11 @@ if st.session_state.algoritmo == "comparar":
 
         col2.metric(
             "Tiempo Ruta A* (tráfico)",
-            f"{ruta_a['tiempo_total']:.2f}"
+            f"{ruta_a['tiempo_total']:.2f} mins"
         )
+
+        # DETECTAR SI LAS RUTAS SON IDÉNTICAS
+        son_iguales = rutas_identicas(ruta_d, ruta_a)
 
         coord_origen = [
             ruta_d['coordenadas'][0]['lat'],
@@ -207,50 +213,122 @@ if st.session_state.algoritmo == "comparar":
 
         m = folium.Map(location=coord_origen, zoom_start=13)
 
-        # --- DIJKSTRA (AZUL) ---
-        puntos_d = [[p['lat'], p['lon']] for p in ruta_d['coordenadas']]
-        folium.PolyLine(
-            puntos_d,
-            color="blue",
-            weight=5,
-            opacity=0.9
-        ).add_to(m)
+        # MARCADORES 
 
-        # --- A* (ROJO)--
-        puntos_a = []
+        nodos = {}
+
+        for p in ruta_d['coordenadas']:
+            nodos[p['id']] = p
+
         for p in ruta_a['coordenadas']:
-            puntos_a.append([
-                p['lat'] + 0.00015,   # pequeño offset visual
-                p['lon'] + 0.00015
-            ])
+            nodos[p['id']] = p
 
-        folium.PolyLine(
-            puntos_a,
-            color="red",
-            weight=5,
-            opacity=0.9
-        ).add_to(m)
+        for parada in nodos.values():
 
-        # --- LEYENDA CORREGIDA ---
-        legend_html = """
-        <div style="
-        position: fixed;
-        bottom: 40px;
-        left: 40px;
-        width: 170px;
-        background-color: white;
-        border:2px solid grey;
-        z-index:9999;
-        font-size:14px;
-        color:black;
-        padding:10px;
-        ">
-        <b>Leyenda</b><br>
-        <span style="color:blue;">████</span> Dijkstra<br>
-        <span style="color:red;">████</span> A*
-        </div>
-        """
+            color = (
+                "green" if parada['tipo'] == "Almacén"
+                else "red" if parada['tipo'] == "PuntoEntrega"
+                else "blue"
+            )
+
+            icono = (
+                "home" if parada['tipo'] == "Almacén"
+                else "flag" if parada['tipo'] == "PuntoEntrega"
+                else "info-sign"
+            )
+
+            folium.Marker(
+                location=[parada['lat'], parada['lon']],
+                popup=f"{parada['tipo']}: {parada['id']}",
+                icon=folium.Icon(color=color, icon=icono)
+            ).add_to(m)
+
+        # RENDERIZADO DE RUTAS
+
+        if son_iguales:
+
+            # Ruta unificada (resultado idéntico)
+            puntos = [
+                [p['lat'], p['lon']]
+                for p in ruta_d['coordenadas']
+            ]
+
+            folium.PolyLine(
+                puntos,
+                color="purple",
+                weight=6,
+                opacity=0.9,
+            ).add_to(m)
+
+            legend_html = """
+            <div style="
+            position: fixed;
+            bottom: 40px;
+            left: 40px;
+            width: 240px;
+            background-color: white;
+            border:2px solid grey;
+            z-index:9999;
+            font-size:14px;
+            color:black;
+            padding:10px;
+            ">
+            <b>Leyenda</b><br>
+            <span style="color:purple;">████</span> Dijkstra & A* (Ruta idéntica)
+            </div>
+            """
+
+        else:
+
+            puntos_d = [
+                [p['lat'], p['lon']]
+                for p in ruta_d['coordenadas']
+            ]
+
+            folium.PolyLine(
+                puntos_d,
+                color="blue",
+                weight=5,
+                opacity=0.9
+            ).add_to(m)
+
+            puntos_a = [
+                [p['lat'], p['lon']]
+                for p in ruta_a['coordenadas']
+            ]
+
+            folium.PolyLine(
+                puntos_a,
+                color="red",
+                weight=5,
+                opacity=0.9,
+                dash_array="8,4"
+            ).add_to(m)
+
+            legend_html = """
+            <div style="
+            position: fixed;
+            bottom: 40px;
+            left: 40px;
+            width: 200px;
+            background-color: white;
+            border:2px solid grey;
+            z-index:9999;
+            font-size:14px;
+            color:black;
+            padding:10px;
+            ">
+            <b>Leyenda</b><br>
+            <span style="color:blue;">████</span> Dijkstra<br>
+            <span style="color:red;">████</span> A*
+            </div>
+            """
 
         m.get_root().html.add_child(folium.Element(legend_html))
 
         st_folium(m, width=1000, height=500, returned_objects=[])
+
+    else:
+        st.warning(
+            f"⚠️ No existe una ruta viable para un camión de {peso_camion} toneladas entre {origen} y {destino}."
+        )
