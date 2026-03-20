@@ -1,4 +1,15 @@
 MATCH (n) DETACH DELETE n;
+CREATE CONSTRAINT intersection_id_unique IF NOT EXISTS
+FOR (i:Intersección) REQUIRE i.id_intersección IS UNIQUE;
+
+CREATE CONSTRAINT almacen_id_unique IF NOT EXISTS
+FOR (a:Almacén) REQUIRE a.id_almacen IS UNIQUE;
+
+CREATE CONSTRAINT entrega_id_unique IF NOT EXISTS
+FOR (p:PuntoEntrega) REQUIRE p.id_entrega IS UNIQUE;
+
+CREATE INDEX ubicacion_nombre_idx IF NOT EXISTS
+FOR (n:Intersección) ON (n.nombre);
 
 CREATE (:Almacén {id:'A-01', latitud:8.2953, longitud:-62.7111});
 CREATE (:Almacén {id:'A-02', latitud:8.3000, longitud:-62.7000});
