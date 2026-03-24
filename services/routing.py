@@ -15,8 +15,8 @@ def obtener_ruta_optima(origen_id, destino_id, peso_camion):
     CALL gds.shortestPath.dijkstra.stream(
         'routingGraph',
         {
-            sourceNode:id(o),
-            targetNode:id(d),
+            sourceNode:o,
+            targetNode:d,
             relationshipWeightProperty:'distancia'
         }
     )
@@ -48,21 +48,17 @@ def obtener_ruta_optima(origen_id, destino_id, peso_camion):
 def obtener_ruta_optima_astar(origen_id, destino_id, peso_camion):
 
     conn = Neo4jConnection()
-
     query = """
     MATCH (o:Almacén {id:$origen_id})
     MATCH (d:PuntoEntrega {id:$destino_id})
 
-    CALL gds.shortestPath.astar.stream(
-        'routingGraph',
-        {
-            sourceNode:id(o),
-            targetNode:id(d),
-            latitudeProperty:'lat',
-            longitudeProperty:'lon',
+    CALL gds.shortestPath.astar.stream('routingGraph', {
+            sourceNode: o,
+            targetNode: d,
+            latitudeProperty: 'latitud',
+            longitudeProperty: 'longitud',
             relationshipWeightProperty:'tiempo_trafico'
-        }
-    )
+    })
     YIELD totalCost,nodeIds
 
     WITH totalCost,nodeIds,
@@ -98,40 +94,56 @@ def obtener_nodos_por_tipo(tipo_nodo):
 def crear_proyeccion(origen_id, destino_id, peso_camion):
 
     conn = Neo4jConnection()
-
-    # Elimina proyección previa si existe
+    """
+    Elimina proyección previa si existe, 
+    debido a que el peso del camión puede cambiar
+    y afectar las rutas
+    """
     conn.execute_write_query("""
         CALL gds.graph.drop('routingGraph', false)
         YIELD graphName
     """)
 
     projection_query = """
-    CALL gds.graph.project.cypher(
-        'routingGraph',
+    CALL () {
+        WITH $peso_camion AS peso_camion
 
-        'MATCH (n)
-         WHERE n:Almacén OR n:PuntoEntrega OR n:Intersección
-         RETURN id(n) AS id,
-                n.latitud AS lat,
-                n.longitud AS lon',
+        MATCH (source)
+        WHERE source:Almacén OR source:PuntoEntrega OR source:Intersección
 
-        '
-        MATCH (n)-[r:CONECTA_A]->(m)
-        WHERE r.capacidad_max_toneladas >= $peso_camion
-        RETURN id(n) AS source,
-               id(m) AS target,
-               r.distancia AS distancia,
-               r.tiempo_estimado * (1 + r.estado_trafico) AS tiempo_trafico
-        ',
+        OPTIONAL MATCH (source)-[r:CONECTA_A]->(target)
+        WHERE r.capacidad_max_toneladas >= peso_camion
 
-        {parameters:{peso_camion:$peso_camion}}
-    )
-    YIELD graphName
+        RETURN gds.graph.project(
+            'routingGraph',
+            source,
+            target,
+            {
+                sourceNodeProperties: source {
+                    .latitud,
+                    .longitud
+                },
+                targetNodeProperties: target {
+                    .latitud,
+                    .longitud
+                },
+                relationshipProperties: {
+                    distancia: r.distancia,
+                    tiempo_trafico: r.tiempo_estimado * (1 + r.estado_trafico)
+                }
+            }
+        ) AS graphInfo
+    }
+
+    RETURN graphInfo
     """
 
-    conn.execute_write_query(
-        projection_query,
-        {"peso_camion": float(peso_camion)}
-    )
+    params = {
+        "origen_id": origen_id,
+        "destino_id": destino_id,
+        "peso_camion": peso_camion
+    }
+
+    conn.execute_write_query(projection_query, params)
 
     conn.close()
