@@ -1,0 +1,16 @@
+# Created by venv; see https://docs.python.org/3/library/venv.html
+# Entorno virtual y configuración local
+venv/
+pyvenv.cfg
+.env
+
+# Configuración del editor
+.vscode/
+
+# Archivos de compilación de Python (en cualquier nivel)
+**/__pycache__/
+*.pyc
+
+# (Opcional) Archivos basura del Sistema Operativo
+.DS_Store
+Thumbs.db**/__pycache__/
