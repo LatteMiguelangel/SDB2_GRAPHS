@@ -1,10 +1,11 @@
 # app.py
+import time
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
 from services.routing import (
-    obtener_ruta_optima, 
-    obtener_ruta_optima_astar, 
+    obtener_ruta_optima,
+    obtener_ruta_optima_astar,
     obtener_nodos_por_tipo,
     crear_proyeccion
 )
@@ -29,7 +30,7 @@ def asegurar_proyeccion(origen_id, destino_id, peso_camion):
         st.session_state.peso_proyectado = peso_camion
 
 
-# Función para detectar si ambos algoritmos generaron la misma ruta 
+# Función para detectar si ambos algoritmos generaron la misma ruta
 def rutas_identicas(r1, r2):
     coords1 = [(p['lat'], p['lon']) for p in r1['coordenadas']]
     coords2 = [(p['lat'], p['lon']) for p in r2['coordenadas']]
@@ -93,9 +94,13 @@ if st.sidebar.button("Calcular Ruta con Dijkstra"):
     asegurar_proyeccion(origen, destino, peso_camion)
 
     with st.spinner("Ejecutando Dijkstra..."):
+        t_beginning = time.perf_counter()
         st.session_state.datos_ruta = obtener_ruta_optima(origen, destino, peso_camion)
+        t_end = time.perf_counter()
         st.session_state.algoritmo = "dijkstra"
         st.session_state.ruta_calculada = True
+        t_latency = (t_end - t_beginning) * 1000
+        st.session_state.ms_ejecucion = t_latency
 
 
 if st.sidebar.button("Calcular Ruta con A*"):
@@ -103,9 +108,14 @@ if st.sidebar.button("Calcular Ruta con A*"):
     asegurar_proyeccion(origen, destino, peso_camion)
 
     with st.spinner("Ejecutando A*..."):
+        t_beginning = time.perf_counter()
         st.session_state.datos_ruta = obtener_ruta_optima_astar(origen, destino, peso_camion)
+        t_end = time.perf_counter()
         st.session_state.algoritmo = "astar"
         st.session_state.ruta_calculada = True
+        t_latency = (t_end - t_beginning) * 1000
+        st.session_state.ms_ejecucion = t_latency
+
 
 
 if st.sidebar.button("Comparar Dijkstra vs A*"):
@@ -113,8 +123,17 @@ if st.sidebar.button("Comparar Dijkstra vs A*"):
     asegurar_proyeccion(origen, destino, peso_camion)
 
     with st.spinner("Comparando algoritmos..."):
+
+        t_beginning_dijks = time.perf_counter()
         st.session_state.ruta_d = obtener_ruta_optima(origen, destino, peso_camion)
+        t_end_dijks = time.perf_counter()
+        st.session_state.ms_dijkstra = (t_end_dijks - t_beginning_dijks) * 1000
+
+        t_beginning_astar = time.perf_counter()
         st.session_state.ruta_a = obtener_ruta_optima_astar(origen, destino, peso_camion)
+        t_end_astar = time.perf_counter()
+        st.session_state.ms_astar = (t_end_astar - t_beginning_astar) * 1000
+
         st.session_state.algoritmo = "comparar"
         st.session_state.ruta_calculada = True
 
@@ -124,16 +143,17 @@ if st.sidebar.button("Comparar Dijkstra vs A*"):
 if st.session_state.ruta_calculada and st.session_state.algoritmo != "comparar":
 
     ruta = st.session_state.datos_ruta
-    
+    tiempo = st.session_state
     if ruta:
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
 
         if st.session_state.algoritmo == "dijkstra":
 
             col1.metric("Distancia Total", f"{ruta['distancia_total']:.2f} km")
             col2.metric("Peso Distancia", f"{ruta['costo_total']:.2f} km")
             col3.metric("Nodos Recorridos", len(ruta['coordenadas']))
+            col4.metric("Execution time ",f"{st.session_state.ms_ejecucion:.2f} ms" )
             color_ruta = "blue"
 
         else:
@@ -141,6 +161,7 @@ if st.session_state.ruta_calculada and st.session_state.algoritmo != "comparar":
             col1.metric("Tiempo Total con Tráfico", f"{ruta['tiempo_total']:.2f} mins")
             col2.metric("Peso Tiempo/Tráfico", f"{ruta['tiempo_total']:.2f} mins")
             col3.metric("Nodos Recorridos", len(ruta['coordenadas']))
+            col4.metric("Execution time ",f"{st.session_state.ms_ejecucion:.2f} ms" )
             color_ruta = "red"
 
         st.subheader("Visualización de la Ruta")
@@ -191,7 +212,7 @@ if st.session_state.algoritmo == "comparar":
 
     if ruta_d and ruta_a:
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3, col4 = st.columns(4)
 
         col1.metric(
             "Distancia Ruta Dijkstra",
@@ -199,9 +220,25 @@ if st.session_state.algoritmo == "comparar":
         )
 
         col2.metric(
+            "Tiempo de ejecución Dijkstra",
+            f"{st.session_state.ms_dijkstra:.2f} ms"
+        )
+
+        col3.metric(
             "Tiempo Ruta A* (tráfico)",
             f"{ruta_a['tiempo_total']:.2f} mins"
         )
+
+        col4.metric(
+            "Tiempo de ejecución A*",
+            f"{st.session_state.ms_astar:.2f} ms"
+        )
+
+        difference = abs(st.session_state.ms_dijkstra - st.session_state.ms_astar)
+        if st.session_state.ms_astar < st.session_state.ms_dijkstra:
+            st.success(f"🙌 A* fue {difference:.2f} ms más rápido que Dijkstra en esta búsqueda.")
+        else:
+            st.info(f"⚖ Dijkstra fue {difference:.2f} ms más rápido,pero A* optimizó el tráfico.")
 
         # DETECTAR SI LAS RUTAS SON IDÉNTICAS
         son_iguales = rutas_identicas(ruta_d, ruta_a)
@@ -213,7 +250,7 @@ if st.session_state.algoritmo == "comparar":
 
         m = folium.Map(location=coord_origen, zoom_start=13)
 
-        # MARCADORES 
+        # MARCADORES
 
         nodos = {}
 
