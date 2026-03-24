@@ -1,12 +1,13 @@
 MATCH (n) DETACH DELETE n;
+
 CREATE CONSTRAINT intersection_id_unique IF NOT EXISTS
-FOR (i:Intersección) REQUIRE i.id_intersección IS UNIQUE;
+FOR (i:Intersección) REQUIRE i.id IS UNIQUE;
 
 CREATE CONSTRAINT almacen_id_unique IF NOT EXISTS
-FOR (a:Almacén) REQUIRE a.id_almacen IS UNIQUE;
+FOR (a:Almacén) REQUIRE a.id IS UNIQUE;
 
 CREATE CONSTRAINT entrega_id_unique IF NOT EXISTS
-FOR (p:PuntoEntrega) REQUIRE p.id_entrega IS UNIQUE;
+FOR (p:PuntoEntrega) REQUIRE p.id IS UNIQUE;
 
 CREATE INDEX ubicacion_nombre_idx IF NOT EXISTS
 FOR (n:Intersección) ON (n.nombre);
