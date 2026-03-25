@@ -240,6 +240,10 @@ if st.session_state.algoritmo == "comparar":
         else:
             st.info(f"⚖ Dijkstra fue {difference:.2f} ms más rápido,pero A* optimizó el tráfico.")
 
+
+        difference_mins = abs(ruta_d['tiempo_total'] - ruta_a['tiempo_total'])
+        st.write(f"🤑la diferencia estimada de llegada entre ambas rutas es de **{difference_mins:.2f} minutos**.")
+
         # DETECTAR SI LAS RUTAS SON IDÉNTICAS
         son_iguales = rutas_identicas(ruta_d, ruta_a)
 
