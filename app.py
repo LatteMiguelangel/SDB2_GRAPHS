@@ -1,4 +1,5 @@
 # app.py
+import pandas as pd
 import time
 import streamlit as st
 import folium
@@ -196,6 +197,57 @@ if st.session_state.ruta_calculada and st.session_state.algoritmo != "comparar":
         ).add_to(m)
 
         st_folium(m, width=1000, height=500, returned_objects=[])
+
+        with st.expander("🗺 ver detalles de la hoja de ruta "):
+
+            st.info("note: Los IDs de los nodos corresponde a la base de datos neo4j")
+
+            if st.session_state.algoritmo == "comparar":
+                option = st.radio(
+                "Selecciona que hoja de ruta quieres comprobar: ",
+                ["dijkstra","A*","Ambos"],
+                horizontal=True
+                )
+                if option == "dijkstra":
+                    df_d = pd.DataFrame(st.session_state.ruta_d['coordenadas'])
+
+                    columnas_visibles = ['lat', 'lon']
+                    df_para_mostrar = df_d[columnas_visibles]
+
+                    st.dataframe(df_para_mostrar, use_container_width=True)
+
+
+                elif option == "A*":
+                    df_a = pd.DataFrame(st.session_state.ruta_a['coordenadas'])
+
+                    columnas_visibles = ['lat', 'lon']
+                    df_para_mostrar = df_a[columnas_visibles]
+
+                    st.dataframe(df_para_mostrar, use_container_width=True)
+
+                else:
+                    df_d = pd.DataFrame(st.session_state.ruta_d['coordenadas'])
+                    columnas_visibles = ['lat', 'lon']
+                    df_para_mostrar = df_d[columnas_visibles]
+                    st.dataframe(df_para_mostrar, use_container_width=True)
+
+
+                    df_a = pd.DataFrame(st.session_state.ruta_a['coordenadas'])
+                    columnas_visibles = ['lat', 'lon']
+                    df_para_mostrar = df_a[columnas_visibles]
+                    st.dataframe(df_para_mostrar, use_container_width=True)
+
+            else:
+                st.write(F"Mostrando hoja de ruta para:**{st.session_state.algoritmo.upper()}**")
+
+                df_unica = pd.DataFrame(st.session_state.datos_ruta['coordenadas'])
+
+
+                columnas_visibles = ['lat', 'lon']
+                df_para_mostrar = df_unica[columnas_visibles]
+
+                st.dataframe(df_para_mostrar, use_container_width=True)
+
 
     else:
         st.warning(
